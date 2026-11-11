@@ -9,7 +9,7 @@ import codecs
 import ipaddress
 from functools import lru_cache
 
-from pydantic import SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 TRANSPORTS = {"auto", "tcp", "udp"}
@@ -23,13 +23,17 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,
     )
 
     service_name: str = "sipe-sipe-biometric-api"
     service_version: str = "1.0.0"
     app_env: str = "production"
     log_level: str = "INFO"
-    enable_docs: bool = False
+    enable_docs: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ENABLE_DOCS", "BIOMETRIC_ENABLE_DOCS"),
+    )
 
     biometric_host: str = "192.168.30.90"
     biometric_port: int = 4370
