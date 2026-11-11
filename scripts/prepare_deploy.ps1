@@ -74,9 +74,10 @@ if ($ValidateOnly) {
 }
 
 # Copiar sólo el runtime confirmado; nunca .git, .env, tests ni secretos.
+# Todo el runtime se ubica bajo backend/, que es el contexto de build de Compose.
 foreach ($relative in @('backend/app')) { Clear-Runtime $relative }
 foreach ($relative in $runtimeFiles) {
-    $destination = Join-Path $target $relative
+    $destination = Join-Path $target (Join-Path 'backend' $relative)
     [IO.Directory]::CreateDirectory((Split-Path -Parent $destination)) | Out-Null
     Copy-Item -LiteralPath (Join-Path $source $relative) -Destination $destination
 }
@@ -93,8 +94,9 @@ $manifest = [ordered]@{
 Write-Utf8 (Join-Path $target 'release.json') (($manifest | ConvertTo-Json) + "`n")
 
 # Verificar la entrega, no sólo el contexto local: lo ignorado desaparecería al hacer pull.
-$deliveryPaths = @($runtimeFiles) + @('backend/Dockerfile', 'release.json')
-$ignored = @($deliveryPaths | Git-Target check-ignore --stdin)
+$deliveryPaths = @($runtimeFiles | ForEach-Object { "backend/$_" }) + @('backend/Dockerfile', 'release.json')
+# check-ignore devuelve 1 cuando no ignora nada: es el resultado esperado.
+$ignored = @($deliveryPaths | & git -c "safe.directory=$($target.Replace('\','/'))" -C $target check-ignore --stdin)
 if ($LASTEXITCODE -gt 1) { throw 'No se pudo verificar la inclusión Git del runtime.' }
 if ($ignored.Count -gt 0) { throw ("Git está excluyendo runtime necesario: " + ($ignored -join ', ')) }
 Write-Output "Runtime preparado desde $sha. Sin commit ni push. Falta smoke local del deploy."
