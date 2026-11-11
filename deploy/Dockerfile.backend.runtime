@@ -1,0 +1,21 @@
+FROM python:3.12-slim-bookworm
+ARG SOURCE_REVISION=__SOURCE_SHA__
+ARG RELEASE_VERSION=__RELEASE__
+LABEL org.opencontainers.image.source="https://github.com/AndyGuzmanEscalera/sipe-sipe-biometric-api" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.version="${RELEASE_VERSION}"
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp app
+COPY app ./app
+USER 10001:10001
+EXPOSE 8000
+# Solo lectura: la API no escribe en el sistema de archivos del contenedor.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["python", "-B", "-c", "import json,urllib.request; d=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)); raise SystemExit(0 if d.get('status')=='ok' else 1)"]
+# Compose publica el puerto en 127.0.0.1. El tunel de Cloudflare será el único acceso externo.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-proxy-headers"]
